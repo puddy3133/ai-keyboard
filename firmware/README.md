@@ -121,8 +121,6 @@ AI 写代码不等于结果已经正确。你仍需要查看改动、确认测�
 
 EasyInput Maker 是 **WaytoAGI 社区项目**。原作者：**CY-CHENYUE**。项目自有材料版权及许可主体：**深圳物启万相人工智能有限公司**。
 
-## 关注公众号
-
 <div align="center">
   <p>扫码关注公众号，获取更新与交流反馈</p>
   <img src="assets/readme/wechat-qr.jpg" alt="EasyInput 微信公众号二维码" width="200">
