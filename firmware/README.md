@@ -63,7 +63,7 @@ docs/teaching/ai-vibe-coding.md。为 5 颗 WS2812 增加统一的可配置亮�
 纯逻辑测试，再执行全部宿主测试和 ESP-IDF build；不要自动烧录。
 ```
 
-AI 写代码不等于结果已经正确。你仍需要查看改动、确认测试与构建证据，并在烧录前明确选择自己的开发板。完整练习见 [AI / Vibe Coding 教学路径](docs/teaching/ai-vibe-coding.md)，Agent 的项目入口见 [AI_DEVELOPMENT.md](AI_DEVELOPMENT.md)。
+AI 写代码不等于结果已经正确。你仍需要查看改动、确认测试与构建证据，并在烧录前明确选择自己的开发板。完整练习见 [AI / Vibe Coding 教学路径](docs/teaching/ai-vibe-coding.md)。
 
 ## 完整功能基线包含什么
 
