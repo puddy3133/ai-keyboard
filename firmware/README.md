@@ -111,7 +111,7 @@ AI 写代码不等于结果已经正确。你仍需要查看改动、确认测�
 - [中文共创与提交教程](docs/contributing/how-to-contribute.md)
 - [首个公开版本范围](docs/release/publication-scope.md)
 - [功能等价清单](docs/release/functional-parity.md)
-- [贡献指南](CONTRIBUTING.md) · [安全报告](SECURITY.md) · [第三方声明](THIRD_PARTY_NOTICES.md)
+- [第三方声明](THIRD_PARTY_NOTICES.md)
 
 ## 使用范围与贡献
 
