@@ -1,0 +1,22 @@
+{
+  "name": "ai-keyboard-light",
+  "version": "0.1.0",
+  "description": "AI 键盘灯控守护进程：5 灯独立关联 5 个 AI 应用状态，经 CDC 串口驱动 EasyInput 键盘 WS2812 灯",
+  "license": "MIT",
+  "bin": {
+    "kb-light": "./kb-light.js"
+  },
+  "scripts": {
+    "start": "node kb-light.js start",
+    "stop": "node kb-light.js stop",
+    "status": "node kb-light.js status"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@abandonware/noble": "^1.9.2-26",
+    "fzstd": "^0.1.1",
+    "serialport": "^12.0.0"
+  }
+}

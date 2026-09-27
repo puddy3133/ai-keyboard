@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 键盘灯控台 · 状态与节奏</title>
+<style>
+  :root {
+    --bg: #101216;
+    --panel: #171a20;
+    --panel-2: #1c2027;
+    --line: #262b33;
+    --text: #e6e8ec;
+    --text-2: #9aa3ae;
+    --text-3: #626b76;
+    --blue: #3b82f6;
+    --orange: #f59e0b;
+    --green: #22c55e;
+    --red: #ef4444;
+    --off: #2a2f36;
+    --accent: #38bdf8;
+    --font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+  .wrap { max-width: 1400px; margin: 0 auto; padding: 20px 20px 40px; }
+
+  /* ===== 顶栏 ===== */
+  header.top {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap;
+    padding: 14px 18px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    margin-bottom: 18px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-mark {
+    width: 34px; height: 34px; border-radius: 8px;
+    background: linear-gradient(135deg, #1e293b, #0f172a);
+    border: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .brand h1 { font-size: 16px; font-weight: 600; letter-spacing: 0.02em; }
+  .brand p { font-size: 11px; color: var(--text-3); letter-spacing: 0.08em; text-transform: uppercase; }
+  .badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--text-2);
+    padding: 4px 10px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--panel-2);
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); }
+  .dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot.bad { background: var(--red); box-shadow: 0 0 6px var(--red); }
+  .dot.warn { background: var(--orange); box-shadow: 0 0 6px var(--orange); }
+
+  /* ===== 主栅格 ===== */
+  .grid-main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  @media (max-width: 820px) { .grid-main { grid-template-columns: 1fr; } }
+  .card {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    padding: 16px 18px;
+  }
+  .card-title {
+    font-size: 12px; color: var(--text-3);
+    letter-spacing: 0.12em; text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  /* ===== 5 灯区（自右至左：L1 最右，L5 最左）===== */
+  .lights { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; direction: rtl; }
+  @media (max-width: 560px) { .lights { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); } }
+  .light {
+    direction: ltr; /* 面板右到左排列，卡片内部保持正常文本方向 */
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel-2);
+    padding: 14px 8px 12px;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    text-align: center;
+    transition: border-color 0.3s;
+  }
+  .light.is-live { border-color: rgba(56,189,248,0.45); }
+  .led {
+    width: 52px; height: 52px; border-radius: 50%;
+    background: radial-gradient(circle at 36% 32%, #3a414b, var(--off) 70%);
+    box-shadow: inset 0 0 8px rgba(0,0,0,0.6), 0 0 4px rgba(0,0,0,0.4);
+    transition: background 0.4s, box-shadow 0.4s;
+  }
+  .l-name { font-size: 13px; font-weight: 600; }
+  .l-app { font-size: 11px; color: var(--text-2); min-height: 15px; white-space: nowrap; }
+  .l-state { font-size: 11px; color: var(--text-3); }
+
+  /* 灯效：working 蓝呼吸 */
+  .light[data-st="working"] .led {
+    animation: breathe 4s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%, 100% {
+      background: radial-gradient(circle at 36% 32%, #93c5fd, #2563eb 62%, #1d4ed8);
+      box-shadow: 0 0 8px 2px rgba(59,130,246,0.35);
+    }
+    50% {
+      background: radial-gradient(circle at 36% 32%, #dbeafe, #3b82f6 60%, #2563eb);
+      box-shadow: 0 0 26px 9px rgba(59,130,246,0.85);
+    }
+  }
+  .light[data-st="working"] { border-color: rgba(59,130,246,0.5); }
+
+  /* 灯效：waiting 橙慢闪 */
+  .light[data-st="waiting"] .led {
+    animation: slowblink 2s step-end infinite;
+  }
+  @keyframes slowblink {
+    0%, 49% {
+      background: radial-gradient(circle at 36% 32%, #fde68a, #f59e0b 62%, #b45309);
+      box-shadow: 0 0 18px 6px rgba(245,158,11,0.75);
+    }
+    50%, 100% {
+      background: radial-gradient(circle at 36% 32%, #3a414b, var(--off) 70%);
+      box-shadow: inset 0 0 8px rgba(0,0,0,0.6);
+    }
+  }
+  .light[data-st="waiting"] { border-color: rgba(245,158,11,0.5); }
+
+  /* 灯效：done 绿闪→常亮（12s 周期：前 6s 闪，后 6s 常亮） */
+  .light[data-st="done"] .led {
+    animation: doneflash 12s linear infinite;
+  }
+  @keyframes doneflash {
+    0%, 7.5%, 15%, 22.5%, 30%, 37.5%, 45% {
+      background: radial-gradient(circle at 36% 32%, #86efac, #22c55e 62%, #15803d);
+      box-shadow: 0 0 18px 6px rgba(34,197,94,0.8);
+    }
+    11.25%, 18.75%, 26.25%, 33.75%, 41.25%, 48.75% {
+      background: radial-gradient(circle at 36% 32%, #3a414b, var(--off) 70%);
+      box-shadow: inset 0 0 8px rgba(0,0,0,0.6);
+    }
+    50%, 100% {
+      background: radial-gradient(circle at 36% 32%, #bbf7d0, #22c55e 62%, #15803d);
+      box-shadow: 0 0 14px 5px rgba(34,197,94,0.6);
+    }
+  }
+  .light[data-st="done"] { border-color: rgba(34,197,94,0.5); }
+
+  /* 灯效：error 红快闪 */
+  .light[data-st="error"] .led {
+    animation: errorflash 0.6s step-end infinite;
+  }
+  @keyframes errorflash {
+    0%, 49% {
+      background: radial-gradient(circle at 36% 32%, #fecaca, #ef4444 62%, #b91c1c);
+      box-shadow: 0 0 22px 8px rgba(239,68,68,0.9);
+    }
+    50%, 100% {
+      background: radial-gradient(circle at 36% 32%, #3a414b, var(--off) 70%);
+      box-shadow: inset 0 0 8px rgba(0,0,0,0.6);
+    }
+  }
+  .light[data-st="error"] { border-color: rgba(239,68,68,0.55); }
+
+  /* 灭 / 离线：常暗 */
+  .light[data-st="idle"] .led,
+  .light[data-st="offline"] .led {
+    background: radial-gradient(circle at 36% 32%, #23272e, #181b20 70%);
+    box-shadow: inset 0 0 8px rgba(0,0,0,0.7);
+  }
+
+  /* ===== 应用明细 ===== */
+  .app-list { display: flex; flex-direction: column; gap: 8px; }
+  .app-row {
+    display: grid; grid-template-columns: 42px 150px 1fr auto;
+    gap: 10px; align-items: center;
+    padding: 9px 12px;
+    border: 1px solid var(--line); border-radius: 10px;
+    background: var(--panel-2);
+  }
+  .app-row .a-light { font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+  .app-row .a-name { font-size: 13px; font-weight: 600; white-space: nowrap; }
+  /* 状态背景：与左侧灯效同步的低饱和色 */
+  .app-row.st-bg-working { background: rgba(59,130,246,0.13); border-color: rgba(59,130,246,0.35); }
+  .app-row.st-bg-waiting { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); }
+  .app-row.st-bg-done { background: rgba(34,197,94,0.11); border-color: rgba(34,197,94,0.32); }
+  .app-row.st-bg-error { background: rgba(239,68,68,0.16); border-color: rgba(239,68,68,0.40); }
+  .app-row.st-bg-idle { background: rgba(148,163,184,0.07); border-color: var(--line); }
+  .app-row .a-detail { font-size: 12px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .app-row .a-time { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+  .state-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; padding: 2px 8px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--text-2);
+  }
+  .state-tag::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); }
+  .state-tag.st-working { color: #93c5fd; border-color: rgba(59,130,246,0.4); } .state-tag.st-working::before { background: var(--blue); box-shadow: 0 0 5px var(--blue); }
+  .state-tag.st-waiting { color: #fcd34d; border-color: rgba(245,158,11,0.4); } .state-tag.st-waiting::before { background: var(--orange); box-shadow: 0 0 5px var(--orange); }
+  .state-tag.st-done { color: #86efac; border-color: rgba(34,197,94,0.4); } .state-tag.st-done::before { background: var(--green); box-shadow: 0 0 5px var(--green); }
+  .state-tag.st-error { color: #fca5a5; border-color: rgba(239,68,68,0.4); } .state-tag.st-error::before { background: var(--red); box-shadow: 0 0 5px var(--red); }
+  .state-tag.st-idle, .state-tag.st-offline { color: var(--text-3); }
+
+  /* ===== 通道状态 ===== */
+  .chan { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-top: 14px; }
+  .chan-item {
+    border: 1px solid var(--line); border-radius: 10px;
+    padding: 8px 10px; background: var(--panel-2);
+    text-align: center;
+  }
+  .chan-item .c-label { font-size: 11px; color: var(--text-3); }
+  .chan-item .c-val { font-size: 13px; font-weight: 600; margin-top: 2px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .chan-item .c-val::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); }
+  .chan-item .c-val.ok::before { background: var(--green); box-shadow: 0 0 5px var(--green); }
+  .chan-item .c-val.bad::before { background: var(--red); box-shadow: 0 0 5px var(--red); }
+  .chan-item .c-val.warn::before { background: var(--orange); box-shadow: 0 0 5px var(--orange); }
+
+  /* ===== 灯位配置模态框 ===== */
+  .btn-ghost {
+    font-family: var(--font); font-size: 13px; font-weight: 600;
+    color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 14px; cursor: pointer; transition: border-color .15s, color .15s;
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: #fff; }
+  .overlay {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(8, 10, 14, 0.62);
+    display: none; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    width: 520px; max-width: 100%;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 20px;
+    box-shadow: 0 18px 48px rgba(0,0,0,0.5);
+  }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; }
+  .modal-title { font-size: 15px; font-weight: 600; }
+  .modal-x {
+    font-family: var(--font); font-size: 14px; color: var(--text-3);
+    background: none; border: none; cursor: pointer; padding: 4px 6px; border-radius: 6px;
+  }
+  .modal-x:hover { color: var(--text); background: var(--panel-2); }
+  .modal-sub { font-size: 12px; color: var(--text-2); margin: 6px 0 16px; }
+  .map-list { display: flex; flex-direction: column; gap: 8px; }
+  .map-item {
+    display: grid; grid-template-columns: 46px 1fr 190px; gap: 10px; align-items: center;
+    border: 1px solid var(--line); border-radius: 10px;
+    padding: 8px 12px; background: var(--panel-2);
+  }
+  .map-item .m-key { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; font-weight: 600; }
+  .map-item .m-app { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
+  .map-item select {
+    width: 100%;
+    font-family: var(--font); font-size: 13px;
+    color: var(--text); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: 4px 6px; outline: none; cursor: pointer;
+  }
+  .map-item select:hover { border-color: var(--accent); }
+  .map-item select:focus { border-color: var(--accent); }
+  .modal-foot { margin-top: 16px; display: flex; justify-content: flex-end; }
+
+  /* ===== 音乐控制台 ===== */
+  .console { margin-top: 18px; }
+  .console-body { display: flex; flex-direction: column; gap: 14px; }
+  .console-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--font); font-size: 13px; font-weight: 600;
+    color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 10px;
+    padding: 9px 16px; cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .btn:hover { background: #22272f; border-color: #313843; }
+  .btn.on { background: rgba(56,189,248,0.16); border-color: rgba(56,189,248,0.5); color: #7dd3fc; }
+  .slider-group { display: flex; align-items: center; gap: 10px; }
+  .slider-group label { font-size: 12px; color: var(--text-2); white-space: nowrap; }
+  .slider-group input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 130px; height: 4px; border-radius: 2px;
+    background: #2c313a; outline: none;
+  }
+  .slider-group input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent); border: none; cursor: pointer;
+  }
+  .slider-group .val { font-size: 12px; color: var(--text); min-width: 30px; font-variant-numeric: tabular-nums; }
+
+  /* 节拍网格 */
+  .grid-sec { display: flex; flex-direction: column; gap: 4px; }
+  .grid-head, .grid-row { display: grid; grid-template-columns: 64px repeat(16, 1fr); gap: 4px; align-items: center; }
+  .grid-head .g-label { font-size: 10px; color: var(--text-3); }
+  .cell { height: 18px; border-radius: 3px; background: #1b1f26; border: 1px solid #232833; transition: background 0.1s; }
+  .grid-head .cell { height: 10px; background: transparent; border: none; }
+  .cell.cur { background: rgba(56,189,248,0.35); border-color: rgba(56,189,248,0.6); }
+  .cell.hit-b { background: var(--blue); box-shadow: 0 0 6px rgba(59,130,246,0.7); border-color: var(--blue); }
+  .cell.hit-o { background: var(--orange); box-shadow: 0 0 6px rgba(245,158,11,0.7); border-color: var(--orange); }
+  .cell.hit-g { background: var(--green); box-shadow: 0 0 6px rgba(34,197,94,0.7); border-color: var(--green); }
+  .cell.hit-r { background: var(--red); box-shadow: 0 0 6px rgba(239,68,68,0.7); border-color: var(--red); }
+  .g-name { font-size: 11px; color: var(--text-2); white-space: nowrap; }
+
+  .empty {
+    padding: 22px; text-align: center; color: var(--text-3); font-size: 13px;
+    border: 1px dashed var(--line); border-radius: 10px; margin-top: 8px;
+  }
+  .foot-note { margin-top: 14px; font-size: 11px; color: var(--text-3); text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===== 顶栏 ===== -->
+  <header class="top">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+          <path d="M7 12h1.5M11.25 12h1.5M15.5 12h1.5"></path>
+          <path d="M8.5 16h7"></path>
+        </svg>
+      </div>
+      <div>
+        <h1>AI 键盘灯控台</h1>
+        <p>EasyInput · 5 灯状态与节奏监控</p>
+      </div>
+    </div>
+    <div class="badges">
+      <span class="badge"><span class="dot" id="b-api"></span>API <span id="t-api">-</span></span>
+      <span class="badge"><span class="dot" id="b-daemon"></span>守护进程 <span id="t-daemon">-</span></span>
+      <span class="badge"><span class="dot" id="b-usb"></span>USB <span id="t-usb">-</span></span>
+      <span class="badge"><span class="dot" id="b-ble"></span>BLE <span id="t-ble">-</span></span>
+      <button class="btn-ghost" id="btnMap" type="button">灯位配置</button>
+    </div>
+  </header>
+
+  <!-- ===== 主栅格 ===== -->
+  <div class="grid-main">
+
+    <!-- 左：5 灯 + 通信信道 -->
+    <section class="card">
+      <div class="card-title"><span>五灯实时状态</span><span id="api-lag">-</span></div>
+      <div class="lights" id="lights"></div>
+      <div class="card-title" style="margin-top:18px;"><span>通信信道</span></div>
+      <div class="chan" id="chan"></div>
+    </section>
+
+    <!-- 右：应用明细 -->
+    <section class="card">
+      <div class="card-title"><span>应用状态明细</span></div>
+      <div class="app-list" id="appList"></div>
+    </section>
+  </div>
+
+  <!-- ===== 音乐控制台 ===== -->
+  <section class="card console">
+    <div class="card-title"><span>节奏生成器 · 状态驱动音乐</span><span>灯亮即发声</span></div>
+    <div class="console-body">
+      <div class="console-top">
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn" id="btnMusic" type="button">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18V5l12-2v13"></path>
+              <circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle>
+            </svg>
+            <span id="musicLabel">开启节奏</span>
+          </button>
+        </div>
+        <div style="display:flex; gap:18px; flex-wrap:wrap;">
+          <div class="slider-group">
+            <label>音量</label>
+            <input type="range" id="vol" min="0" max="100" value="55">
+            <span class="val" id="volVal">55</span>
+          </div>
+          <div class="slider-group">
+            <label>速度 BPM</label>
+            <input type="range" id="bpm" min="72" max="160" value="96">
+            <span class="val" id="bpmVal">96</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-sec">
+        <div class="grid-head" id="gridHead"></div>
+        <div class="grid-row" id="gridL5"></div>
+        <div class="grid-row" id="gridL4"></div>
+        <div class="grid-row" id="gridL3"></div>
+        <div class="grid-row" id="gridL2"></div>
+        <div class="grid-row" id="gridL1"></div>
+      </div>
+
+      <div class="empty" id="musicHint">节奏未开启。点击「开启节奏」后，五灯状态将映射为五轨节奏：蓝色=脉冲 · 绿色=琶音 · 橙色=慢板 · 红色=警报 · 熄灭=静音</div>
+    </div>
+  </section>
+
+  <div class="foot-note">数据源：本机守护进程 HTTP API（127.0.0.1:8765）· 每秒轮询 · 音乐由 Web Audio 实时合成，无需音频文件</div>
+</div>
+
+<!-- ===== 灯位配置模态框 ===== -->
+<div class="overlay" id="mapOverlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mapTitle">
+    <div class="modal-head">
+      <div class="modal-title" id="mapTitle">灯位配置 · 热切换</div>
+      <button class="modal-x" id="mapClose" type="button" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-sub">L1–L5 各选一个应用，切换即时生效并自动保存（无需重启守护进程）</div>
+    <div class="map-list" id="mapList"></div>
+    <div class="modal-foot">
+      <button class="btn" id="mapDone" type="button">完成</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ================= 常量 ================= */
+  var API = 'http://127.0.0.1:8765';
+  var APP_EXTRA = ['codex', 'chatgpt', 'claude', 'deepseek', 'pi', 'openclaw', 'doubaowork', 'workbuddy']; // 全部支持的应用，未映射者按此顺序置底
+  // 应用明细动态排序：先按运行时映射 L5→L1，再补全部未映射应用（保证每个应用都展示）
+  function orderedApps(lights) {
+    var seen = {}, order = [];
+    var lm = lights || {};
+    for (var i = 5; i >= 1; i--) {
+      var app = lm['L' + i] ? lm['L' + i].app : null;
+      if (app && !seen[app]) { seen[app] = true; order.push(app); }
+    }
+    APP_EXTRA.forEach(function (a) { if (!seen[a]) order.push(a); });
+    return order;
+  }
+  var APP_LABEL = { codex: 'Codex CLI', chatgpt: 'ChatGPT Desktop', claude: 'Claude CLI', deepseek: 'DeepSeek Harness', pi: 'Pi CLI', openclaw: 'OpenClaw TUI', doubaowork: '豆包工作', workbuddy: 'WorkBuddy' };
+  var APP_OPTIONS = ['codex', 'chatgpt', 'claude', 'deepseek', 'pi', 'openclaw', 'doubaowork', 'workbuddy'];
+  var STATE_LABEL = { working: '工作中', waiting: '待确认', done: '已完成', error: '报错', idle: '待命', offline: '离线' };
+  var FRAME_COLOR = { 0: 'idle', 1: 'blue', 2: 'orange', 3: 'green', 4: 'red' };
+  var STEP_N = 16;
+  var STEP_MULT = 4; // 16 分音符
+
+  /* ================= 状态 ================= */
+  var state = {
+    apps: null,
+    lights: null,
+    channels: null,
+    ok: false,
+    lastPoll: 0,
+    pollFailStreak: 0
+  };
+  var currentOrder = null; // 应用明细当前渲染顺序（映射热切换时重建）
+  var music = {
+    on: false,
+    ctx: null,
+    master: null,
+    vol: 0.55,
+    bpm: 96,
+    step: 0,
+    nextTime: 0,
+    timer: null,
+    hits: {}   // 最近发声：{ 'L1': {step, color, at} }
+  };
+
+  /* ================= DOM 构建 ================= */
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  /* 5 灯初始结构 */
+  function buildLights() {
+    var box = document.getElementById('lights');
+    box.innerHTML = '';
+    for (var i = 1; i <= 5; i++) {
+      var key = 'L' + i;
+      var card = el('div', 'light');
+      card.id = 'light-' + key;
+      card.setAttribute('data-st', 'offline');
+      card.appendChild(el('div', 'led'));
+      card.appendChild(el('div', 'l-name', key));
+      var app = el('div', 'l-app', '-');
+      app.id = 'light-app-' + key;
+      card.appendChild(app);
+      var st = el('div', 'l-state', '离线');
+      st.id = 'light-state-' + key;
+      card.appendChild(st);
+      box.appendChild(card);
+    }
+  }
+
+  /* 应用明细列表（order：动态排序，默认 L5→L1 已映射 + 其他置底） */
+  function buildAppList(order) {
+    var box = document.getElementById('appList');
+    box.innerHTML = '';
+    (order || APP_EXTRA).forEach(function (name) {
+      var row = el('div', 'app-row');
+      row.id = 'row-' + name;
+      var lt = el('div', 'a-light', '-');
+      lt.id = 'app-light-' + name;
+      row.appendChild(lt);
+      row.appendChild(el('div', 'a-name', APP_LABEL[name] || name));
+      var det = el('div', 'a-detail', '-');
+      det.id = 'app-detail-' + name;
+      row.appendChild(det);
+      var t = el('div', 'a-time', '-');
+      t.id = 'app-time-' + name;
+      row.appendChild(t);
+      box.appendChild(row);
+    });
+  }
+
+  /* 节拍网格 */
+  function buildGrid() {
+    var head = document.getElementById('gridHead');
+    head.appendChild(el('div', 'g-label', '轨道'));
+    for (var s = 1; s <= STEP_N; s++) {
+      var c = el('div', 'cell');
+      c.id = 'hc' + (s - 1);
+      head.appendChild(c);
+    }
+    var rows = ['L5', 'L4', 'L3', 'L2', 'L1']; // 轨道行与灯面板位置对应（L1 最右 → 最下行）
+    rows.forEach(function (key) {
+      var row = document.getElementById('grid' + key);
+      row.appendChild(el('div', 'g-name', key));
+      for (var s2 = 0; s2 < STEP_N; s2++) {
+        var cell = el('div', 'cell');
+        cell.id = 'cell-' + key + '-' + s2;
+        row.appendChild(cell);
+      }
+    });
+  }
+
+  /* ================= 渲染 ================= */
+  /* 灯位配置：5 个下拉，热切换映射（即时生效，无需重启）——模态框 */
+  function openMappingModal() {
+    var ov = document.getElementById('mapOverlay');
+    if (ov) ov.classList.add('open');
+    syncMapping(state.lights);
+  }
+  function closeMappingModal() {
+    var ov = document.getElementById('mapOverlay');
+    if (ov) ov.classList.remove('open');
+  }
+  function buildMapping() {
+    var box = document.getElementById('mapList');
+    if (!box) return;
+    box.innerHTML = '';
+    // 自上而下 L5→L1（与灯控台/应用明细方向一致）
+    for (var i = 5; i >= 1; i--) {
+      var key = 'L' + i;
+      var item = el('div', 'map-item');
+      item.appendChild(el('div', 'm-key', key));
+      var appEl = el('div', 'm-app', '-');
+      appEl.id = 'map-app-' + key;
+      item.appendChild(appEl);
+      var sel = document.createElement('select');
+      sel.id = 'map-sel-' + key;
+      sel.setAttribute('aria-label', key + ' 接入应用');
+      APP_OPTIONS.forEach(function (app) {
+        var op = document.createElement('option');
+        op.value = app;
+        op.textContent = APP_LABEL[app] || app;
+        sel.appendChild(op);
+      });
+      sel.addEventListener('change', function () {
+        var s = this;
+        var lightKey = s.id.replace('map-sel-', '');
+        var app = s.value;
+        fetch(API + '/api/mapping', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ light: lightKey, app: app })
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (!d.ok) { window.alert('切换失败：' + (d.error || '未知错误')); poll(); return; }
+            state.mappingBusy = false;
+            poll();
+          })
+          .catch(function () { state.mappingBusy = false; poll(); });
+      });
+      item.appendChild(sel);
+      box.appendChild(item);
+    }
+    // 打开/关闭
+    var btn = document.getElementById('btnMap');
+    if (btn) btn.addEventListener('click', openMappingModal);
+    var x = document.getElementById('mapClose');
+    if (x) x.addEventListener('click', closeMappingModal);
+    var done = document.getElementById('mapDone');
+    if (done) done.addEventListener('click', closeMappingModal);
+    var ov = document.getElementById('mapOverlay');
+    if (ov) ov.addEventListener('click', function (e) { if (e.target === ov) closeMappingModal(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && ov && ov.classList.contains('open')) closeMappingModal();
+    });
+  }
+
+  /* 同步灯位配置下拉与当前映射（轮询时不打断用户正在操作的下拉） */
+  function syncMapping(lights) {
+    if (state.mappingBusy || !lights) return;
+    for (var i = 1; i <= 5; i++) {
+      var key = 'L' + i;
+      var appEl = document.getElementById('map-app-' + key);
+      var sel = document.getElementById('map-sel-' + key);
+      var cur = lights[key] ? lights[key].app : null;
+      if (appEl) appEl.textContent = cur ? (APP_LABEL[cur] || cur) : '-';
+      if (sel && cur && sel.value !== cur) sel.value = cur;
+    }
+  }
+
+  function fmtTime(ts) {
+    if (!ts) return '-';
+    var d = new Date(ts);
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  }
+
+  function fmtLag() {
+    if (!state.lastPoll) return '-';
+    var lag = Date.now() - state.lastPoll;
+    return lag + 'ms';
+  }
+
+  var _mctx = null;
+  function measureTextWidth(text, font) {
+    if (!_mctx) {
+      var c = document.createElement('canvas');
+      _mctx = c.getContext('2d');
+    }
+    _mctx.font = font;
+    return _mctx.measureText(text).width;
+  }
+
+  function render() {
+    var lights = state.lights || {};
+    var apps = state.apps || {};
+
+    for (var i = 1; i <= 5; i++) {
+      var key = 'L' + i;
+      var l = lights[key];
+      var card = document.getElementById('light-' + key);
+      if (!card) continue;
+      if (!l) {
+        card.setAttribute('data-st', 'offline');
+        continue;
+      }
+      var st = l.state || 'offline';
+      card.setAttribute('data-st', st);
+      var appName = l.app || '-';
+      var appEl = document.getElementById('light-app-' + key);
+      if (appEl) appEl.textContent = APP_LABEL[appName] || appName;
+      document.getElementById('light-state-' + key).textContent = STATE_LABEL[st] || st;
+      card.classList.toggle('is-live', l.overridden === true);
+    }
+
+    // 以最宽应用名决定每颗灯卡片宽度（五列等宽、完整显示不折行）
+    var maxNameW = 0;
+    for (var li = 1; li <= 5; li++) {
+      var lk = 'L' + li;
+      var ll = lights[lk];
+      var nm = ll && ll.app ? (APP_LABEL[ll.app] || ll.app) : '';
+      if (!nm) continue;
+      var w = measureTextWidth(nm, '11px "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif');
+      if (w > maxNameW) maxNameW = w;
+    }
+    var cardMin = maxNameW > 0 ? Math.ceil(maxNameW) + 20 : 0; // 文本宽 + padding(16) + border(2) + 余量
+    if (cardMin < 68) cardMin = 68; // 至少容纳 52px LED + padding
+    var cards = document.querySelectorAll('.light');
+    for (var ci = 0; ci < cards.length; ci++) {
+      cards[ci].style.minWidth = cardMin > 0 ? cardMin + 'px' : '';
+    }
+
+    // 应用明细动态排序：映射变化（热切换）时重建行；否则只更新内容
+    var order = orderedApps(state.lights);
+    if (!currentOrder || currentOrder.join() !== order.join()) {
+      currentOrder = order;
+      buildAppList(order);
+    }
+    order.forEach(function (name) {
+      var a = apps[name];
+      var rowEl = document.getElementById('row-' + name);
+      var detEl = document.getElementById('app-detail-' + name);
+      var tEl = document.getElementById('app-time-' + name);
+      var ltEl = document.getElementById('app-light-' + name);
+      if (!detEl) return;
+      // 反查该应用对应的灯位
+      var lightKey = '-';
+      for (var li = 1; li <= 5; li++) {
+        var k = 'L' + li;
+        if (lights[k] && lights[k].app === name) { lightKey = k; break; }
+      }
+      if (ltEl) ltEl.textContent = lightKey;
+      // 状态背景：与左侧灯效同色的低饱和底
+      var stBg = a && a.state ? ' st-bg-' + a.state : ' st-bg-offline';
+      if (rowEl) rowEl.className = 'app-row' + stBg;
+      if (!a) {
+        detEl.textContent = '-';
+        tEl.textContent = '-';
+        return;
+      }
+      detEl.textContent = (a.detail || '') + (a.state ? ' · ' + STATE_LABEL[a.state] : '');
+      tEl.textContent = fmtTime(a.updatedAt);
+    });
+
+    document.getElementById('api-lag').textContent = '更新 ' + fmtLag();
+    syncMapping(state.lights);
+    renderChannels();
+    renderGridVisual();
+  }
+
+  function renderChannels() {
+    var ok = state.ok;
+    setBadge('b-api', 't-api', ok ? 'ok' : 'bad', ok ? '在线' : '离线');
+    setBadge('b-daemon', 't-daemon', ok ? 'ok' : 'bad', ok ? '运行中' : '未连接');
+
+    var ch = state.channels || {};
+    var serial = ch.serial || {};
+    var ble = ch.ble || {};
+
+    var usbTxt = serial.connected ? '在线' : '未连接';
+    var usbCls = serial.connected ? 'ok' : (ok ? 'warn' : 'bad');
+    var bleTxt = ble.connected ? '在线' : (ble.disconnectedForMs > 0 ? '已断开 ' + Math.round(ble.disconnectedForMs / 1000) + 's' : '未连接');
+    var bleCls = ble.connected ? 'ok' : (ok ? 'warn' : 'bad');
+
+    setBadge('b-usb', 't-usb', usbCls, usbTxt);
+    setBadge('b-ble', 't-ble', bleCls, bleTxt);
+
+    var box = document.getElementById('chan');
+    var items = [
+      { label: 'USB / 串口', val: usbTxt + (serial.connected && serial.port ? ' · ' + serial.port : ''), cls: usbCls },
+      { label: 'BLE 无线', val: bleTxt, cls: bleCls },
+      { label: '守护进程', val: ok ? '运行中' : '离线', cls: ok ? 'ok' : 'bad' },
+      { label: 'API 端口', val: ok ? '8765' : '-', cls: ok ? 'ok' : 'bad' }
+    ];
+    box.innerHTML = '';
+    items.forEach(function (it) {
+      var d = el('div', 'chan-item');
+      d.appendChild(el('div', 'c-label', it.label));
+      var v = el('div', 'c-val' + (it.cls ? ' ' + it.cls : ''), it.val);
+      d.appendChild(v);
+      box.appendChild(d);
+    });
+  }
+
+  function setBadge(dotId, txtId, cls, txt) {
+    var d = document.getElementById(dotId);
+    var t = document.getElementById(txtId);
+    if (!d || !t) return;
+    d.className = 'dot ' + cls;
+    t.textContent = txt;
+  }
+
+  /* ================= 数据轮询 ================= */
+  function poll() {
+    fetch(API + '/api/status', { cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (d) {
+        state.ok = true;
+        state.pollFailStreak = 0;
+        state.apps = d.apps || {};
+        state.lights = d.lights || {};
+        state.channels = d.channels || null;
+        state.lastPoll = Date.now();
+        render();
+      })
+      .catch(function () {
+        state.ok = false;
+        state.pollFailStreak++;
+        state.apps = null;
+        state.lights = null;
+        render();
+      });
+  }
+
+  /* ================= 节拍网格可视化 ================= */
+  function renderGridVisual() {
+    var cur = music.step;
+    for (var s = 0; s < STEP_N; s++) {
+      var hc = document.getElementById('hc' + s);
+      if (hc) hc.className = 'cell' + (s === cur ? ' cur' : '');
+    }
+    for (var i = 1; i <= 5; i++) {
+      var key = 'L' + i;
+      for (var s2 = 0; s2 < STEP_N; s2++) {
+        var cell = document.getElementById('cell-' + key + '-' + s2);
+        if (!cell) continue;
+        var hit = music.hits[key] && music.hits[key].step === s2 && (Date.now() - music.hits[key].at < 240);
+        if (s2 === cur) {
+          cell.className = 'cell cur';
+        } else if (hit) {
+          cell.className = 'cell hit-' + music.hits[key].color;
+        } else {
+          cell.className = 'cell';
+        }
+      }
+    }
+  }
+
+  /* ================= Web Audio 引擎 ================= */
+  function ensureAudio() {
+    if (!music.ctx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
+      music.ctx = new AC();
+      music.master = music.ctx.createGain();
+      music.master.gain.value = music.vol;
+      music.master.connect(music.ctx.destination);
+    }
+    if (music.ctx.state === 'suspended') music.ctx.resume();
+    return true;
+  }
+
+  function tone(freq, t, dur, type, vol) {
+    var ctx = music.ctx;
+    if (!ctx) return;
+    var o = ctx.createOscillator();
+    var g = ctx.createGain();
+    o.type = type || 'sine';
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+    o.connect(g);
+    g.connect(music.master);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+  }
+
+  /* 每灯状态 → 该步是否发声、什么音 */
+  function scheduleStep(stepIdx, t) {
+    if (!state.lights) return;
+    var stepDur = 60 / music.bpm / STEP_MULT;
+    for (var i = 1; i <= 5; i++) {
+      var key = 'L' + i;
+      var l = state.lights[key];
+      if (!l) continue;
+      var st = l.state;
+      if (st === 'idle' || st === 'offline' || st === 'waiting') continue;
+
+      if (st === 'working' && stepIdx % 2 === 0) {
+        tone(329.63, t, stepDur * 1.7, 'sine', 0.16);
+        markHit(key, stepIdx, 'b');
+      } else if (st === 'done') {
+        var arp = [523.25, 659.25, 783.99];
+        tone(arp[Math.floor(stepIdx / 2) % 3], t, stepDur * 2.2, 'triangle', 0.13);
+        markHit(key, stepIdx, 'g');
+      } else if (st === 'error') {
+        var f = (stepIdx % 2 === 0) ? 880 : 660;
+        tone(f, t, stepDur * 0.8, 'square', 0.07);
+        markHit(key, stepIdx, 'r');
+      }
+    }
+  }
+
+  function markHit(key, stepIdx, color) {
+    music.hits[key] = { step: stepIdx, color: color, at: Date.now() };
+  }
+
+  function schedulerTick() {
+    if (!music.on || !music.ctx) return;
+    var stepDur = 60 / music.bpm / STEP_MULT;
+    while (music.nextTime < music.ctx.currentTime + 0.12) {
+      scheduleStep(music.step, music.nextTime);
+      music.step = (music.step + 1) % STEP_N;
+      music.nextTime += stepDur;
+    }
+    renderGridVisual();
+  }
+
+  function startScheduler() {
+    if (music.timer) return;
+    music.step = 0;
+    music.nextTime = music.ctx.currentTime + 0.06;
+    music.timer = setInterval(schedulerTick, 30);
+    schedulerTick();
+  }
+
+  function stopScheduler() {
+    if (music.timer) { clearInterval(music.timer); music.timer = null; }
+    music.hits = {};
+    renderGridVisual();
+  }
+
+  function toggleMusic() {
+    if (!music.on) {
+      if (!ensureAudio()) { alert('当前浏览器不支持 Web Audio，无法生成节奏'); return; }
+      music.on = true;
+      document.getElementById('btnMusic').classList.add('on');
+      document.getElementById('musicLabel').textContent = '停止节奏';
+      document.getElementById('musicHint').style.display = 'none';
+      startScheduler();
+    } else {
+      music.on = false;
+      document.getElementById('btnMusic').classList.remove('on');
+      document.getElementById('musicLabel').textContent = '开启节奏';
+      document.getElementById('musicHint').style.display = '';
+      stopScheduler();
+    }
+  }
+
+  /* ================= 控件绑定 ================= */
+  function bindControls() {
+    document.getElementById('btnMusic').addEventListener('click', toggleMusic);
+
+    var vol = document.getElementById('vol');
+    var volVal = document.getElementById('volVal');
+    vol.addEventListener('input', function () {
+      music.vol = vol.value / 100;
+      volVal.textContent = vol.value;
+      if (music.master) music.master.gain.value = music.vol;
+    });
+
+    var bpm = document.getElementById('bpm');
+    var bpmVal = document.getElementById('bpmVal');
+    bpm.addEventListener('input', function () {
+      music.bpm = parseInt(bpm.value, 10);
+      bpmVal.textContent = bpm.value;
+    });
+  }
+
+  /* ================= 启动 ================= */
+  function init() {
+    buildLights();
+    buildMapping();
+    buildAppList();
+    buildGrid();
+    bindControls();
+    poll();
+    setInterval(poll, 1000);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>

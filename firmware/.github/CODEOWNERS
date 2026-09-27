@@ -1,0 +1,12 @@
+# Default review owner
+* @CY-CHENYUE
+
+# Protect governance, licensing, security, and hardware-sensitive paths
+/.github/ @CY-CHENYUE
+/LICENSE @CY-CHENYUE
+/LICENSES/ @CY-CHENYUE
+/THIRD_PARTY_NOTICES.md @CY-CHENYUE
+/CONTRIBUTING.md @CY-CHENYUE
+/SECURITY.md @CY-CHENYUE
+/components/esp_hid/ @CY-CHENYUE
+/main/ @CY-CHENYUE

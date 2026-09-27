@@ -1,0 +1,195 @@
+#include "keyboard/encoder.h"
+
+namespace ai_keyboard {
+namespace {
+
+int transition_delta(std::uint8_t previous, std::uint8_t current) {
+  const auto transition = static_cast<std::uint8_t>(((previous & 0x03) << 2) | (current & 0x03));
+  switch (transition) {
+    case 0b0001:
+    case 0b0111:
+    case 0b1110:
+    case 0b1000:
+      return 1;
+    case 0b0010:
+    case 0b1011:
+    case 0b1101:
+    case 0b0100:
+      return -1;
+    default:
+      return 0;
+  }
+}
+
+}  // namespace
+
+bool EncoderStepQueue::push(int step,
+                            std::uint32_t timestamp_ms,
+                            std::uint32_t order_sequence) {
+  if (step == 0) {
+    return true;
+  }
+
+  if (size_ > 0 && coalescing_allowed_) {
+    const auto tail = (head_ + size_ - 1) % runs_.size();
+    const bool same_direction = (runs_[tail].steps > 0) == (step > 0);
+    const auto combined = static_cast<std::int64_t>(runs_[tail].steps) + step;
+    if (same_direction &&
+        combined >= -kEncoderStepRunMagnitudeLimit &&
+        combined <= kEncoderStepRunMagnitudeLimit) {
+      runs_[tail].steps += step;
+      runs_[tail].last_timestamp_ms = timestamp_ms;
+      runs_[tail].last_order_sequence = order_sequence;
+      return true;
+    }
+  }
+
+  if (size_ >= runs_.size()) {
+    return false;
+  }
+  const auto tail = (head_ + size_) % runs_.size();
+  runs_[tail] = {
+      step, timestamp_ms, timestamp_ms, order_sequence, order_sequence};
+  ++size_;
+  coalescing_allowed_ = true;
+  return true;
+}
+
+bool EncoderStepQueue::peek(EncoderStepRun* run) const {
+  if (run == nullptr) {
+    return false;
+  }
+  if (claimed_run_valid_) {
+    *run = claimed_run_;
+    return true;
+  }
+  if (size_ == 0) {
+    return false;
+  }
+  *run = runs_[head_];
+  return true;
+}
+
+bool EncoderStepQueue::claim(EncoderStepRun* run) {
+  if (run == nullptr) {
+    return false;
+  }
+  if (claimed_run_valid_) {
+    *run = claimed_run_;
+    return true;
+  }
+  if (size_ == 0) {
+    return false;
+  }
+  claimed_run_ = runs_[head_];
+  claimed_run_valid_ = true;
+  runs_[head_] = {};
+  head_ = (head_ + 1) % runs_.size();
+  --size_;
+  *run = claimed_run_;
+  return true;
+}
+
+bool EncoderStepQueue::pop(EncoderStepRun* run) {
+  if (run == nullptr) {
+    return false;
+  }
+  if (claimed_run_valid_) {
+    *run = claimed_run_;
+    claimed_run_ = {};
+    claimed_run_valid_ = false;
+    return true;
+  }
+  if (size_ == 0) {
+    return false;
+  }
+  *run = runs_[head_];
+  runs_[head_] = {};
+  head_ = (head_ + 1) % runs_.size();
+  --size_;
+  return true;
+}
+
+void EncoderStepQueue::break_coalescing() {
+  coalescing_allowed_ = false;
+}
+
+void EncoderStepQueue::clear() {
+  runs_ = {};
+  claimed_run_ = {};
+  claimed_run_valid_ = false;
+  head_ = 0;
+  size_ = 0;
+  coalescing_allowed_ = true;
+}
+
+bool EncoderStepQueue::empty() const {
+  return !claimed_run_valid_ && size_ == 0;
+}
+
+std::size_t EncoderStepQueue::size() const {
+  return size_ + (claimed_run_valid_ ? 1U : 0U);
+}
+
+void EncoderDecoder::reset(std::uint8_t state) {
+  previous_state_ = state & 0x03;
+  accumulator_ = 0;
+  armed_ = previous_state_ == 0;
+}
+
+int EncoderDecoder::update(std::uint8_t state) {
+  state &= 0x03;
+  if (state == previous_state_) {
+    return 0;
+  }
+
+  const auto delta = transition_delta(previous_state_, state);
+  previous_state_ = state;
+  if (delta == 0) {
+    ++invalid_transition_count_;
+    if (accumulator_ != 0) {
+      ++partial_reset_count_;
+    }
+    accumulator_ = 0;
+    if (state == 0) {
+      armed_ = true;
+    }
+    return 0;
+  }
+
+  if (!armed_) {
+    if (state == 0) {
+      armed_ = true;
+      accumulator_ = 0;
+    }
+    return 0;
+  }
+
+  accumulator_ += delta;
+  if (state != 0) {
+    return 0;
+  }
+
+  const auto completed_step = accumulator_;
+  accumulator_ = 0;
+  if (completed_step >= 4) {
+    return 1;
+  }
+  if (completed_step <= -4) {
+    return -1;
+  }
+  if (completed_step != 0) {
+    ++partial_reset_count_;
+  }
+  return 0;
+}
+
+std::uint32_t EncoderDecoder::invalid_transition_count() const {
+  return invalid_transition_count_;
+}
+
+std::uint32_t EncoderDecoder::partial_reset_count() const {
+  return partial_reset_count_;
+}
+
+}  // namespace ai_keyboard

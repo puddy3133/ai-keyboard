@@ -1,0 +1,7 @@
+node_modules/
+captures/
+*.log
+.env
+sdkconfig
+build/
+.DS_Store

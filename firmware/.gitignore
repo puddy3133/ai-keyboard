@@ -1,0 +1,44 @@
+# Operating system and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ESP-IDF and host build outputs
+build/
+build-*/
+build-host/
+managed_components/
+sdkconfig
+sdkconfig.old
+compile_commands.json
+*.bin
+*.elf
+*.map
+
+# Generated caches and temporary output
+.cache/
+output/
+tmp/
+temp/
+*.log
+*.dump
+*.core
+*.pyc
+__pycache__/
+assets/readme/render/
+assets/readme/page/
+
+# Local credentials and private material
+.env
+.env.*
+!.env.example
+secrets/
+credentials/
+*.key
+*.p12
+*.pfx
+
+# Keep dependencies.lock tracked for reproducible builds.

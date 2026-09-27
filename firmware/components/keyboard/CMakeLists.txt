@@ -1,0 +1,45 @@
+idf_component_register(
+  SRCS
+    "src/audio_io_arbiter.cpp"
+    "src/audio_session.cpp"
+    "src/audio_control_wire.cpp"
+    "src/awake_wait_planner.cpp"
+    "src/boot_led_sequence.cpp"
+    "src/cold_boot_feedback.cpp"
+    "src/battery_estimator.cpp"
+    "src/ble_advertising_state.cpp"
+    "src/ble_fixed_text_stream.cpp"
+    "src/ble_input_scheduler.cpp"
+    "src/ble_owner_recovery.cpp"
+    "src/config_payload.cpp"
+    "src/config_receiver.cpp"
+    "src/config_state.cpp"
+    "src/config_status.cpp"
+    "src/debounce.cpp"
+    "src/diagnostic_command.cpp"
+    "src/encoder.cpp"
+    "src/encoder_press_gesture.cpp"
+    "src/held_keyboard_state.cpp"
+    "src/hid_report_queue.cpp"
+    "src/hid_keycode.cpp"
+    "src/host_action_protocol.cpp"
+    "src/input_feedback.cpp"
+    "src/input_test.cpp"
+    "src/keyboard_snapshot_delivery.cpp"
+    "src/keymap.cpp"
+    "src/platform_selection.cpp"
+    "src/peripheral_power_lease.cpp"
+    "src/power_cycle.cpp"
+    "src/power_policy.cpp"
+    "src/speaker_probe_status.cpp"
+    "src/speaker_playback.cpp"
+    "src/speaker_service_startup.cpp"
+    "src/status_hid_protocol.cpp"
+    "src/transport_routing.cpp"
+  INCLUDE_DIRS
+    "include"
+)
+
+if(EASY_INPUT_BOARD STREQUAL "v2")
+  target_compile_definitions(${COMPONENT_LIB} PUBLIC EASY_INPUT_BOARD_V2=1)
+endif()
