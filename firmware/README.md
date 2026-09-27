@@ -1,7 +1,5 @@
 # EasyInput Maker
 
-![EasyInput Maker：8 个按键与编码器连接 ESP32-S3、USB/BLE、灯光和音频能力的社区固件](assets/readme/hero.svg)
-
 **从一份完整功能基线开始，让 AI 帮你增加下一项硬件能力。**
 
 EasyInput Maker 是面向 **EasyInput V2.0 / ESP32-S3** 的 WaytoAGI 社区固件。它保留按键、旋钮、灯光、USB/BLE HID、电池、麦克风与声音资源等现有能力，同时提供公开硬件边界、测试入口和 AI/Vibe Coding 教学路径。
